@@ -32,7 +32,7 @@ try {
     Write-Host "  [3/4] statusline.ps1 downloaded" -ForegroundColor Green
 } catch {
     Write-Host "  [3/4] Download failed: $_" -ForegroundColor Red
-    exit 1
+    return
 }
 
 # 4. Update settings.json
