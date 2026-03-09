@@ -84,8 +84,8 @@ $raw_pwd = if ($json.workspace.current_dir) { $json.workspace.current_dir }
            elseif ($json.cwd)               { $json.cwd }
            else                             { (Get-Location).Path }
 
-$home = $env:USERPROFILE
-if ($raw_pwd.StartsWith($home)) { $raw_pwd = "~" + $raw_pwd.Substring($home.Length) }
+$home_dir = $env:USERPROFILE
+if ($raw_pwd.StartsWith($home_dir)) { $raw_pwd = "~" + $raw_pwd.Substring($home_dir.Length) }
 $raw_pwd = $raw_pwd -replace '\\', '/'
 $parts   = $raw_pwd -split '/'
 $pwd_str = if ($raw_pwd.Length -gt 35 -and $parts.Count -gt 3) {
