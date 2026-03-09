@@ -1,29 +1,39 @@
 # ─────────────────────────────────────────
-# Claude Code StatusLine v9
-# - SessionStart 캐시 파일 폴백 지원
-# - 세션 시작 직후부터 표시
+# Claude Code StatusLine v10
+# - output 토큰 포함 퍼센트 계산
+# - 프로젝트별 캐시 파일 ({project}/.claude/statusline-cache.json)
 # Font: Hack Nerd Font Mono
 # ─────────────────────────────────────────
 
-# ── JSON 로드: stdin 우선, 없으면 캐시 파일 ──
+# ── stdin 파싱 ────────────────────────────
 $input_data = $input | Out-String
-$cache_path = "$env:USERPROFILE\.claude\statusline-cache.json"
-
-$json = $null
+$json_raw   = $null
 try {
     $trimmed = $input_data.Trim()
     if ($trimmed -ne "" -and $trimmed -ne "{}") {
-        $json = $trimmed | ConvertFrom-Json
-        # 유효한 JSON이면 캐시 갱신
-        $trimmed | Set-Content -Path $cache_path -Encoding UTF8 -ErrorAction SilentlyContinue
+        $json_raw = $trimmed | ConvertFrom-Json
     }
 } catch {}
 
-# stdin 파싱 실패 시 캐시 파일로 폴백
-if ($null -eq $json -and (Test-Path $cache_path)) {
+# ── 캐시 경로: 프로젝트 디렉토리 기준 ───────
+# stdin JSON이 있으면 workspace.current_dir 사용, 없으면 현재 위치
+$proj_dir   = if ($json_raw.workspace.current_dir) { $json_raw.workspace.current_dir }
+              elseif ($json_raw.cwd)               { $json_raw.cwd }
+              else                                 { (Get-Location).Path }
+$cache_dir  = Join-Path $proj_dir ".claude"
+$cache_path = Join-Path $cache_dir "statusline-cache.json"
+
+# ── JSON 확정: stdin 우선, 없으면 캐시 폴백 ──
+$json = $null
+if ($null -ne $json_raw) {
+    $json = $json_raw
+    # 유효한 JSON이면 프로젝트 캐시 갱신
     try {
-        $json = Get-Content $cache_path -Raw -Encoding UTF8 | ConvertFrom-Json
+        if (-not (Test-Path $cache_dir)) { New-Item -ItemType Directory -Force -Path $cache_dir | Out-Null }
+        $trimmed | Set-Content -Path $cache_path -Encoding UTF8 -ErrorAction SilentlyContinue
     } catch {}
+} elseif (Test-Path $cache_path) {
+    try { $json = Get-Content $cache_path -Raw -Encoding UTF8 | ConvertFrom-Json } catch {}
 }
 
 # 그래도 없으면 빈 객체
@@ -54,18 +64,18 @@ else { $model_name = "Claude" }
 # ── 컨텍스트 ─────────────────────────────
 $ctx_size = if ($json.context_window.context_window_size) { [int]$json.context_window.context_window_size } else { 200000 }
 
-$in_tok = 0; $cache_c = 0; $cache_r = 0
+$in_tok = 0; $out_tok = 0; $cache_c = 0; $cache_r = 0
 if ($null -ne $json.context_window.current_usage) {
     $in_tok  = if ($json.context_window.current_usage.input_tokens)                { [int]$json.context_window.current_usage.input_tokens }                else { 0 }
+    $out_tok  = if ($json.context_window.current_usage.output_tokens)                { [int]$json.context_window.current_usage.output_tokens }                else { 0 }
     $cache_c = if ($json.context_window.current_usage.cache_creation_input_tokens) { [int]$json.context_window.current_usage.cache_creation_input_tokens } else { 0 }
     $cache_r = if ($json.context_window.current_usage.cache_read_input_tokens)     { [int]$json.context_window.current_usage.cache_read_input_tokens }     else { 0 }
 }
 
+# output 토큰 포함하여 직접 계산 (used_percentage는 output 미포함이라 사용 안 함)
 $pct = 0.0
-if ($null -ne $json.context_window.used_percentage -and [double]$json.context_window.used_percentage -gt 0) {
-    $pct = [double]$json.context_window.used_percentage
-} elseif ($ctx_size -gt 0 -and ($in_tok + $cache_c + $cache_r) -gt 0) {
-    $pct = ($in_tok + $cache_c + $cache_r) * 100.0 / $ctx_size
+if ($ctx_size -gt 0 -and ($in_tok + $out_tok + $cache_c + $cache_r) -gt 0) {
+    $pct = ($in_tok + $out_tok + $cache_c + $cache_r) * 100.0 / $ctx_size
 }
 $pct_int = [int]$pct
 
