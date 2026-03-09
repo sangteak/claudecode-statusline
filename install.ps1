@@ -1,9 +1,7 @@
-# ═══════════════════════════════════════════════════════
 # Claude Code Statusline - Installer
-# 사용법: iwr https://raw.githubusercontent.com/sangteak/claudecode-statusline/main/install.ps1 | iex
-# ═══════════════════════════════════════════════════════
+# Usage: iwr https://raw.githubusercontent.com/sangteak/claudecode-statusline/main/install.ps1 | iex
 
-# ── 파이프 실행 감지: iwr | iex 방식이면 임시 파일로 저장 후 새 프로세스 재실행 ──
+# Detect pipe execution (iwr | iex): re-launch as new process to avoid $HOME conflict
 if (-not $MyInvocation.MyCommand.Path) {
     $tmp = "$env:TEMP\cc-statusline-install.ps1"
     $MyInvocation.MyCommand.ScriptBlock | Out-File -FilePath $tmp -Encoding UTF8
@@ -18,34 +16,34 @@ $settings   = "$env:USERPROFILE\.claude\settings.json"
 
 Write-Host ""
 Write-Host "  Claude Code Statusline Installer" -ForegroundColor Cyan
-Write-Host "  ─────────────────────────────────" -ForegroundColor DarkGray
+Write-Host "  ---------------------------------" -ForegroundColor DarkGray
 Write-Host ""
 
-# ── 1. 실행 정책 확인 ─────────────────────
+# 1. Execution policy
 $policy = Get-ExecutionPolicy -Scope CurrentUser
 if ($policy -eq 'Restricted' -or $policy -eq 'Undefined') {
     Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
-    Write-Host "  [1/4] 실행 정책 설정 완료 (RemoteSigned)" -ForegroundColor Green
+    Write-Host "  [1/4] Execution policy -> RemoteSigned" -ForegroundColor Green
 } else {
-    Write-Host "  [1/4] 실행 정책 확인 ($policy)" -ForegroundColor Green
+    Write-Host "  [1/4] Execution policy OK ($policy)" -ForegroundColor Green
 }
 
-# ── 2. hooks 디렉토리 생성 ────────────────
+# 2. Create hooks directory
 if (-not (Test-Path $hooks_dir)) {
     New-Item -ItemType Directory -Force -Path $hooks_dir | Out-Null
 }
-Write-Host "  [2/4] hooks 디렉토리 준비 완료" -ForegroundColor Green
+Write-Host "  [2/4] Hooks directory ready" -ForegroundColor Green
 
-# ── 3. statusline.ps1 다운로드 ───────────
+# 3. Download statusline.ps1
 try {
     Invoke-WebRequest -Uri "$REPO_RAW/statusline.ps1" -OutFile $script_dst -UseBasicParsing
-    Write-Host "  [3/4] statusline.ps1 다운로드 완료" -ForegroundColor Green
+    Write-Host "  [3/4] statusline.ps1 downloaded" -ForegroundColor Green
 } catch {
-    Write-Host "  [3/4] 다운로드 실패: $_" -ForegroundColor Red
+    Write-Host "  [3/4] Download failed: $_" -ForegroundColor Red
     exit 1
 }
 
-# ── 4. settings.json 업데이트 ────────────
+# 4. Update settings.json
 $new_statusline = [PSCustomObject]@{
     type    = "command"
     command = "powershell -File `"$script_dst`""
@@ -63,27 +61,17 @@ if (Test-Path $settings) {
         }
 
         $s | ConvertTo-Json -Depth 10 | Set-Content $settings -Encoding UTF8
-        Write-Host "  [4/4] settings.json 업데이트 완료" -ForegroundColor Green
+        Write-Host "  [4/4] settings.json updated" -ForegroundColor Green
     } catch {
-        Write-Host "  [4/4] settings.json 파싱 실패 - 수동으로 추가해주세요:" -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host '  "statusLine": {' -ForegroundColor DarkGray
-        Write-Host "    `"type`": `"command`"," -ForegroundColor DarkGray
-        Write-Host "    `"command`": `"powershell -File $script_dst`"" -ForegroundColor DarkGray
-        Write-Host '  }' -ForegroundColor DarkGray
+        Write-Host "  [4/4] settings.json parse failed - add manually:" -ForegroundColor Yellow
+        Write-Host "        `"statusLine`": { `"type`": `"command`", `"command`": `"powershell -File $script_dst`" }" -ForegroundColor DarkGray
     }
 } else {
     @{ statusLine = $new_statusline } | ConvertTo-Json -Depth 10 | Set-Content $settings -Encoding UTF8
-    Write-Host "  [4/4] settings.json 생성 완료" -ForegroundColor Green
+    Write-Host "  [4/4] settings.json created" -ForegroundColor Green
 }
 
-# ── 완료 ─────────────────────────────────
 Write-Host ""
-Write-Host "  ✅ 설치 완료!" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "  설치된 파일:" -ForegroundColor DarkGray
-Write-Host "    $script_dst" -ForegroundColor DarkGray
-Write-Host ""
-Write-Host "  ⚠  Hack Nerd Font Mono 가 설치되어 있어야 아이콘이 정상 표시됩니다." -ForegroundColor Yellow
-Write-Host "  →  Claude Code를 재시작하면 statusline이 적용됩니다." -ForegroundColor White
+Write-Host "  Done! Restart Claude Code to apply." -ForegroundColor Cyan
+Write-Host "  NOTE: Hack Nerd Font Mono required for icons." -ForegroundColor Yellow
 Write-Host ""
