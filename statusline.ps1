@@ -66,14 +66,15 @@ elseif ($json.model.api_model_id -and $json.model.api_model_id -ne "") {
 else { $model_name = "Claude" }
 
 # ── 컨텍스트 ─────────────────────────────
-$ctx_size = if ($json.context_window.context_window_size) { [int]$json.context_window.context_window_size } else { 200000 }
+# ── 컨텍스트 (live stdin 전용 — 캐시 사용 안 함) ──
+$ctx_size = if ($json_raw.context_window.context_window_size) { [int]$json_raw.context_window.context_window_size } else { 200000 }
 
 $in_tok = 0; $out_tok = 0; $cache_c = 0; $cache_r = 0
-if ($null -ne $json.context_window.current_usage) {
-    $in_tok  = if ($json.context_window.current_usage.input_tokens)                { [int]$json.context_window.current_usage.input_tokens }                else { 0 }
-    $out_tok  = if ($json.context_window.current_usage.output_tokens)                { [int]$json.context_window.current_usage.output_tokens }                else { 0 }
-    $cache_c = if ($json.context_window.current_usage.cache_creation_input_tokens) { [int]$json.context_window.current_usage.cache_creation_input_tokens } else { 0 }
-    $cache_r = if ($json.context_window.current_usage.cache_read_input_tokens)     { [int]$json.context_window.current_usage.cache_read_input_tokens }     else { 0 }
+if ($null -ne $json_raw -and $null -ne $json_raw.context_window.current_usage) {
+    $in_tok  = if ($json_raw.context_window.current_usage.input_tokens)                { [int]$json_raw.context_window.current_usage.input_tokens }                else { 0 }
+    $out_tok = if ($json_raw.context_window.current_usage.output_tokens)               { [int]$json_raw.context_window.current_usage.output_tokens }               else { 0 }
+    $cache_c = if ($json_raw.context_window.current_usage.cache_creation_input_tokens) { [int]$json_raw.context_window.current_usage.cache_creation_input_tokens } else { 0 }
+    $cache_r = if ($json_raw.context_window.current_usage.cache_read_input_tokens)     { [int]$json_raw.context_window.current_usage.cache_read_input_tokens }     else { 0 }
 }
 
 # output 토큰 포함하여 직접 계산 (used_percentage는 output 미포함이라 사용 안 함)
