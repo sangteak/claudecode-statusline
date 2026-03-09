@@ -1,14 +1,6 @@
 # Claude Code Statusline - Installer
 # Usage: iwr https://raw.githubusercontent.com/sangteak/claudecode-statusline/main/install.ps1 | iex
 
-# Detect pipe execution (iwr | iex): re-launch as new process to avoid $HOME conflict
-if (-not $MyInvocation.MyCommand.Path) {
-    $tmp = "$env:TEMP\cc-statusline-install.ps1"
-    $MyInvocation.MyCommand.ScriptBlock | Out-File -FilePath $tmp -Encoding UTF8
-    powershell -ExecutionPolicy Bypass -File $tmp
-    return
-}
-
 $REPO_RAW   = "https://raw.githubusercontent.com/sangteak/claudecode-statusline/main"
 $hooks_dir  = "$env:USERPROFILE\.claude\hooks"
 $script_dst = "$hooks_dir\statusline.ps1"
