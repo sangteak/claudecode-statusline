@@ -5,6 +5,11 @@
 # Font: Hack Nerd Font Mono
 # ─────────────────────────────────────────
 
+# ── 인코딩 강제 설정 (powershell.exe 환경 대응) ──
+$null = & cmd /c chcp 65001
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 # ── stdin 파싱 ────────────────────────────
 $input_data = $input | Out-String
 $json_raw   = $null
