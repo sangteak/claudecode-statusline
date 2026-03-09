@@ -26,7 +26,7 @@ Claude Code 하단에 버전, 모델, 경로, Git 브랜치, 컨텍스트 사용
 PowerShell에서 아래 한 줄 실행:
 
 ```powershell
-iwr https://raw.githubusercontent.com/{username}/claude-statusline/main/install.ps1 | iex
+iwr https://raw.githubusercontent.com/sangteak/claude-statusline/main/install.ps1 | iex
 ```
 
 Claude Code 재시작 후 자동 적용.
@@ -36,7 +36,7 @@ Claude Code 재시작 후 자동 적용.
 재설치하면 `statusline.ps1`만 덮어써서 업데이트돼. settings.json은 변경 없음.
 
 ```powershell
-iwr https://raw.githubusercontent.com/{username}/claude-statusline/main/install.ps1 | iex
+iwr https://raw.githubusercontent.com/sangteak/claude-statusline/main/install.ps1 | iex
 ```
 
 ## 표시 정보
