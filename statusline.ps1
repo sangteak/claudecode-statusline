@@ -96,8 +96,9 @@ $pwd_str = if ($raw_pwd.Length -gt 35 -and $parts.Count -gt 3) {
     ".../" + $parts[-2] + "/" + $parts[-1]
 } else { $raw_pwd }
 
-# ── Git 브랜치 ────────────────────────────
+# ── Git 브랜치 / Perforce 스트림 ─────────────
 $git_branch = $null; $git_dirty = $false
+$p4_stream  = $null
 $work_dir   = if ($json.workspace.current_dir) { $json.workspace.current_dir }
               elseif ($json.cwd)               { $json.cwd }
               else                             { (Get-Location).Path }
@@ -109,6 +110,21 @@ try {
         $git_dirty  = ($status -and $status.Trim() -ne "")
     }
 } catch {}
+
+# git이 없으면 Perforce 스트림 시도
+if (-not $git_branch) {
+    try {
+        $p4_info = & p4 -d $work_dir info 2>$null
+        if ($LASTEXITCODE -eq 0 -and $p4_info) {
+            $stream_line = $p4_info | Where-Object { $_ -match "^Client stream:" }
+            if ($stream_line -and $stream_line -match "^Client stream:\s+(.+)$") {
+                # //depot/main → main 만 표시
+                $full_stream = $matches[1].Trim()
+                $p4_stream   = $full_stream -replace '^//[^/]+/', ''
+            }
+        }
+    } catch {}
+}
 
 # ── ANSI 헬퍼 ────────────────────────────
 function fg($r, $g, $b) { return "$([char]27)[38;2;${r};${g};${b}m" }
@@ -145,7 +161,7 @@ $ICON_BRANCH = [char]0xE0A0
 $ICON_CTX    = [char]0xF0E7
 $ICON_TIME   = [char]0xF017
 
-$DIV      = $FG_DIM + "  │  " + $RESET
+$DIV      = $FG_DIM + "  $([char]0x2502)  " + $RESET
 $time_str = Get-Date -Format "HH:mm:ss"
 
 $out  = "  "
@@ -158,6 +174,9 @@ if ($git_branch) {
     $bc = if ($git_dirty) { $FG_DIRTY } else { $FG_BRANCH }
     $dm = if ($git_dirty) { " *" } else { "" }
     $out += $DIV + $bc + "$ICON_BRANCH $git_branch$dm" + $RESET
+} elseif ($p4_stream) {
+    $ICON_P4 = [char]0xF1D3  # Perforce 느낌의 아이콘 (git merge 아이콘)
+    $out += $DIV + $FG_BRANCH + "$ICON_P4 $p4_stream" + $RESET
 }
 
 $out += $DIV
