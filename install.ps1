@@ -3,6 +3,14 @@
 # 사용법: iwr https://raw.githubusercontent.com/sangteak/claudecode-statusline/main/install.ps1 | iex
 # ═══════════════════════════════════════════════════════
 
+# ── 파이프 실행 감지: iwr | iex 방식이면 임시 파일로 저장 후 새 프로세스 재실행 ──
+if (-not $MyInvocation.MyCommand.Path) {
+    $tmp = "$env:TEMP\cc-statusline-install.ps1"
+    $MyInvocation.MyCommand.ScriptBlock | Out-File -FilePath $tmp -Encoding UTF8
+    powershell -ExecutionPolicy Bypass -File $tmp
+    exit
+}
+
 $REPO_RAW   = "https://raw.githubusercontent.com/sangteak/claudecode-statusline/main"
 $hooks_dir  = "$env:USERPROFILE\.claude\hooks"
 $script_dst = "$hooks_dir\statusline.ps1"
@@ -65,7 +73,6 @@ if (Test-Path $settings) {
         Write-Host '  }' -ForegroundColor DarkGray
     }
 } else {
-    # settings.json 없으면 새로 생성
     @{ statusLine = $new_statusline } | ConvertTo-Json -Depth 10 | Set-Content $settings -Encoding UTF8
     Write-Host "  [4/4] settings.json 생성 완료" -ForegroundColor Green
 }
