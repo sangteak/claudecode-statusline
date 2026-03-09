@@ -2,9 +2,9 @@
 
 Claude Code 하단에 버전, 모델, 경로, Git 브랜치, 컨텍스트 사용량, 시간을 표시하는 statusline.
 
-```
- v2.1.58  │   Sonnet  │   ~/GW-Server  │   feature/my-branch  │   ███████░░░░░░░  47%  │   15:27:59
-```
+![default](images/claudecode-statueline-default.png)
+
+![contains git](images/claudecode-statueline-git.png)
 
 ## 요구사항
 
