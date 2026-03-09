@@ -6,7 +6,7 @@ if (-not $MyInvocation.MyCommand.Path) {
     $tmp = "$env:TEMP\cc-statusline-install.ps1"
     $MyInvocation.MyCommand.ScriptBlock | Out-File -FilePath $tmp -Encoding UTF8
     powershell -ExecutionPolicy Bypass -File $tmp
-    exit
+    return
 }
 
 $REPO_RAW   = "https://raw.githubusercontent.com/sangteak/claudecode-statusline/main"
