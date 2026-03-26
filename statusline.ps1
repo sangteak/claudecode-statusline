@@ -301,6 +301,7 @@ $ICON_DIR    = [char]0xF07C
 $ICON_BRANCH = [char]0xE0A0
 $ICON_CTX    = [char]0xF0E7
 $ICON_TIME   = [char]0xF017
+$ICON_AGENT  = [char]0x25D0  # ◐
 
 $DIV      = $FG_DIM + "  $([char]0x2502)  " + $RESET
 $time_str = Get-Date -Format "HH:mm:ss"
@@ -324,9 +325,8 @@ $out += $FG_BAR  + ("$pct_int%".PadLeft(4)) + $RESET
 
 # 에이전트 카운트 (running > 0일 때만)
 if ($agent_count -gt 0) {
-    $ICON_AGENT_SPIN = [char]0x25D0  # ◐
     $agent_label = if ($agent_count -eq 1) { "agent" } else { "agents" }
-    $out += $DIV + $FG_AGENT + "$ICON_AGENT_SPIN $agent_count $agent_label" + $RESET
+    $out += $DIV + $FG_AGENT + "$ICON_AGENT $agent_count $agent_label" + $RESET
 }
 
 $out += $DIV
@@ -349,7 +349,9 @@ if ($agent_count -gt 0) {
     }
 
     if ($long_running.Count -gt 0) {
-        # 최대 3개 표시 (가장 오래된 순 — 이미 정렬됨)
+        # 최대 3개 표시 (가장 오래된 순)
+        # $running_agents는 Get-RunningAgents에서 timestamp 기준 정렬됨
+        # $long_running은 순회 필터링이므로 정렬 순서 보존됨
         $to_show = if ($long_running.Count -gt 3) { $long_running[0..2] } else { $long_running }
 
         $detail_parts = @()
