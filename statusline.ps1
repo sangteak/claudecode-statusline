@@ -320,7 +320,52 @@ if ($git_branch) {
 $out += $DIV
 $out += $FG_BAR  + "$ICON_CTX "             + $RESET
 $out += $bar_str + $RESET + "  "
-$out += $FG_BAR  + ("$pct_int%".PadLeft(4)) + $RESET + $DIV
+$out += $FG_BAR  + ("$pct_int%".PadLeft(4)) + $RESET
+
+# 에이전트 카운트 (running > 0일 때만)
+if ($agent_count -gt 0) {
+    $ICON_AGENT_SPIN = [char]0x25D0  # ◐
+    $agent_label = if ($agent_count -eq 1) { "agent" } else { "agents" }
+    $out += $DIV + $FG_AGENT + "$ICON_AGENT_SPIN $agent_count $agent_label" + $RESET
+}
+
+$out += $DIV
 $out += $FG_TIME + "$ICON_TIME $time_str"   + $RESET + "  "
 
 Write-Host $out
+
+# 상세 에이전트 줄 (5초 이상 running만)
+if ($agent_count -gt 0) {
+    $now_utc = [DateTime]::UtcNow
+    $long_running = @()
+    foreach ($ag in $running_agents) {
+        if ($ag.timestamp) {
+            try {
+                $start = [DateTime]::Parse($ag.timestamp).ToUniversalTime()
+                $diff  = ($now_utc - $start).TotalSeconds
+                if ($diff -ge 5) { $long_running += $ag }
+            } catch {}
+        }
+    }
+
+    if ($long_running.Count -gt 0) {
+        # 최대 3개 표시 (가장 오래된 순 — 이미 정렬됨)
+        $to_show = if ($long_running.Count -gt 3) { $long_running[0..2] } else { $long_running }
+
+        $detail_parts = @()
+        foreach ($ag in $to_show) {
+            $detail_parts += Format-AgentDetail -Agent $ag `
+                -FgIcon $FG_AGENT -FgName $FG_AGENT_NAME `
+                -FgDesc $FG_AGENT_DESC -FgTime $FG_TIME -Reset $RESET
+        }
+
+        $more = ""
+        if ($long_running.Count -gt 3) {
+            $extra = $long_running.Count - 3
+            $more = "  ${FG_DIM}+${extra} more${RESET}"
+        }
+
+        $detail_line = "  " + ($detail_parts -join ($FG_DIM + "  $([char]0x2502)  " + $RESET)) + $more
+        Write-Host $detail_line
+    }
+}
