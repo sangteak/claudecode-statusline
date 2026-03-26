@@ -1,7 +1,8 @@
 # ─────────────────────────────────────────
-# Claude Code StatusLine v10
+# Claude Code StatusLine v11
 # - output 토큰 포함 퍼센트 계산
 # - 프로젝트별 캐시 파일 ({project}/.claude/statusline-cache.json)
+# - 에이전트 추적 (transcript JSONL 파싱)
 # Font: Hack Nerd Font Mono
 # ─────────────────────────────────────────
 
@@ -111,6 +112,156 @@ try {
     }
 } catch {}
 
+# ── 에이전트 추적 (transcript JSONL) ─────
+function Get-RunningAgents {
+    param([string]$TranscriptPath, [string]$CacheDir)
+
+    $empty = @()
+
+    # 경로 없으면 즉시 반환
+    if (-not $TranscriptPath -or $TranscriptPath -eq "") { return $empty }
+    if (-not (Test-Path $TranscriptPath)) { return $empty }
+
+    # mtime+size 캐시 판별
+    $agents_cache_path = Join-Path $CacheDir "statusline-agents-cache.json"
+    $file_info = Get-Item $TranscriptPath -ErrorAction SilentlyContinue
+    if (-not $file_info) { return $empty }
+
+    $current_mtime = $file_info.LastWriteTimeUtc.Ticks
+    $current_size  = $file_info.Length
+
+    # 캐시 히트 확인
+    if (Test-Path $agents_cache_path) {
+        try {
+            $cached = Get-Content $agents_cache_path -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($cached.transcript_mtime -eq $current_mtime -and $cached.transcript_size -eq $current_size) {
+                if ($cached.agents -and $cached.agents.Count -gt 0) {
+                    return $cached.agents
+                }
+                return $empty
+            }
+        } catch {}
+    }
+
+    # 캐시 미스 — 전체 JSONL 파싱
+    $tool_uses = @{}
+    $tool_results = @{}
+
+    try {
+        $lines = Get-Content $TranscriptPath -Encoding UTF8 -ErrorAction SilentlyContinue
+        if (-not $lines) { return $empty }
+
+        foreach ($line in $lines) {
+            $line = $line.Trim()
+            if ($line -eq "") { continue }
+
+            try {
+                $entry = $line | ConvertFrom-Json
+
+                if ($entry.type -eq "assistant" -and $entry.message.content) {
+                    foreach ($block in $entry.message.content) {
+                        if ($block.type -eq "tool_use" -and $block.name -eq "Agent") {
+                            $inp = $block.input
+                            $tool_uses[$block.id] = @{
+                                tool_use_id   = $block.id
+                                subagent_type = if ($inp.subagent_type) { $inp.subagent_type } else { "agent" }
+                                description   = if ($inp.description) { $inp.description } else { "" }
+                                model         = if ($inp.model) { $inp.model } else { $null }
+                                timestamp     = if ($entry.timestamp) { $entry.timestamp } else { $null }
+                            }
+                        }
+                    }
+                }
+                elseif ($entry.type -eq "user" -and $entry.message.content) {
+                    foreach ($block in $entry.message.content) {
+                        if ($block.type -eq "tool_result" -and $block.tool_use_id) {
+                            if ($tool_uses.ContainsKey($block.tool_use_id)) {
+                                $tool_results[$block.tool_use_id] = $true
+                            }
+                        }
+                    }
+                }
+            } catch {
+                continue
+            }
+        }
+    } catch {
+        return $empty
+    }
+
+    # running 에이전트 추출
+    $running = @()
+    foreach ($id in $tool_uses.Keys) {
+        if (-not $tool_results.ContainsKey($id)) {
+            $running += [PSCustomObject]$tool_uses[$id]
+        }
+    }
+
+    # 캐시 갱신
+    try {
+        if (-not (Test-Path $CacheDir)) { New-Item -ItemType Directory -Force -Path $CacheDir | Out-Null }
+        $cache_obj = @{
+            transcript_mtime = $current_mtime
+            transcript_size  = $current_size
+            agents           = $running
+        }
+        $cache_obj | ConvertTo-Json -Depth 5 | Set-Content -Path $agents_cache_path -Encoding UTF8 -ErrorAction SilentlyContinue
+    } catch {}
+
+    return $running
+}
+
+$transcript_path = if ($json.transcript_path) { $json.transcript_path } else { "" }
+$running_agents  = @(Get-RunningAgents -TranscriptPath $transcript_path -CacheDir $cache_dir)
+$agent_count     = $running_agents.Count
+
+function Format-AgentDetail {
+    param(
+        [PSCustomObject]$Agent,
+        [string]$FgIcon,
+        [string]$FgName,
+        [string]$FgDesc,
+        [string]$FgTime,
+        [string]$Reset
+    )
+
+    $icon = [char]0x25D0  # ◐
+
+    $name = if ($Agent.subagent_type) { $Agent.subagent_type } else { "agent" }
+
+    $model_tag = ""
+    if ($Agent.model) {
+        $model_tag = " ${FgDesc}[$($Agent.model)]${Reset}"
+    }
+
+    $desc = ""
+    if ($Agent.description -and $Agent.description -ne "") {
+        $d = $Agent.description
+        if ($d.Length -gt 40) { $d = $d.Substring(0, 37) + "..." }
+        $desc = ": ${FgDesc}${d}${Reset}"
+    }
+
+    $elapsed = ""
+    if ($Agent.timestamp) {
+        try {
+            $start = [DateTime]::Parse($Agent.timestamp).ToUniversalTime()
+            $now   = [DateTime]::UtcNow
+            $diff  = $now - $start
+            $total_sec = [int]$diff.TotalSeconds
+            if ($total_sec -lt 1)  { $elapsed = "<1s" }
+            elseif ($total_sec -lt 60) { $elapsed = "${total_sec}s" }
+            else {
+                $m = [int][Math]::Floor($diff.TotalMinutes)
+                $s = $total_sec % 60
+                $elapsed = "${m}m ${s}s"
+            }
+        } catch { $elapsed = "?" }
+    }
+    $elapsed_str = if ($elapsed -ne "") { " ${FgTime}(${elapsed})${Reset}" } else { "" }
+
+    return "${FgIcon}${icon} ${FgName}${name}${Reset}${model_tag}${desc}${elapsed_str}"
+}
+
 # ── ANSI 헬퍼 ────────────────────────────
 function fg($r, $g, $b) { return "$([char]27)[38;2;${r};${g};${b}m" }
 $RESET = "$([char]27)[0m"
@@ -123,6 +274,9 @@ $FG_VERSION = fg 150 120 200
 $FG_MODEL   = fg 100 180 200
 $FG_BRANCH  = fg 180 150 80
 $FG_DIRTY   = fg 210 100 80
+$FG_AGENT      = fg 210 150 50   # 주황 — 에이전트 카운트/아이콘
+$FG_AGENT_NAME = fg 180 100 200  # 마젠타 — subagent_type
+$FG_AGENT_DESC = fg 180 180 195  # 밝은 회색 — description
 
 if ($pct_int -ge 95)      { $bar_r = 220; $bar_g = 60;  $bar_b = 60  }
 elseif ($pct_int -ge 80)  { $bar_r = 210; $bar_g = 110; $bar_b = 50  }
