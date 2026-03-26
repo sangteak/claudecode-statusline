@@ -1,0 +1,42 @@
+goal: "statusline.ps1에 하이브리드 에이전트 표시 기능 추가: 기본 줄에 running 카운트, 5초 이상 에이전트는 상세 줄로 표시"
+
+constraints:
+  - "단일 ps1 파일(statusline.ps1) 유지"
+  - "mtime+size 기반 캐시 전략 (별도 파일: .claude/statusline-agents-cache.json)"
+  - "stdin JSON의 transcript_path로 transcript JSONL 파일 경로 획득"
+  - "tool_use_id 기반으로 Agent tool_use ↔ tool_result 매칭"
+  - "최대 3개 에이전트 상세 표시 + 초과 시 '+N more' 요약"
+  - "running/done 이진 상태, 완료 즉시 제거"
+  - "5초 미만 running 에이전트는 상세 줄에서 제외 (카운트에는 포함)"
+  - "파싱 성능 예산 100~300ms"
+  - "기존 statusline 출력 깨뜨리지 않음"
+
+non_goals:
+  - "에이전트 액션(중지/재시작) 기능"
+  - "transcript 전체 이력/로그 뷰어"
+  - "다중 파일 모듈화/외부 의존성 도입"
+
+success_criteria:
+  - "transcript_path가 stdin에 존재할 때 transcript JSONL 파싱하여 에이전트 목록 추출"
+  - "기본 줄에 running 에이전트 카운트 표시 (시간 앞 위치)"
+  - "5초 이상 running 에이전트의 subagent_type, description(40자), 경과시간(Nm Ns) 상세 표시"
+  - "에이전트 0개 시 카운트 및 상세 섹션 숨김"
+  - "transcript_path 없으면 에이전트 섹션 전체 숨김"
+  - "mtime+size 캐시로 파일 변경 없을 시 재파싱 방지"
+  - "기존 statusline 출력(버전, 모델, 컨텍스트, Git, 시간) 정상 유지"
+  - "model 키가 Agent input에 있을 때만 [model] 태그 표시"
+
+assumptions:
+  - "stdin JSON에 transcript_path 필드가 안정적으로 제공됨"
+  - "transcript JSONL의 Agent tool_use/tool_result 구조가 유지됨"
+  - "PowerShell에서 JSONL 스트리밍 파싱이 300ms 내 가능"
+  - "Claude Code statusline이 multi-line 출력 지원"
+
+open_questions: []
+
+context: |
+  claudecode-statusline은 Claude Code CLI의 상태를 터미널 statusline에 표시하는 PowerShell 스크립트.
+  현재 v10은 버전, 모델, 컨텍스트 사용량, Git 정보를 1줄로 표시.
+  사용자는 병렬 에이전트 실행 시 작업 상태 인지 불가 문제를 겪고 있음.
+  claude-hud의 transcript JSONL 파싱 전략을 참고하되 PowerShell 단일 파일로 구현.
+  Contrarian 비판을 반영하여 하이브리드 접근(카운트+5초 필터 상세) 채택.
