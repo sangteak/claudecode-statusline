@@ -136,7 +136,7 @@ function Get-RunningAgents {
             $cached = Get-Content $agents_cache_path -Raw -Encoding UTF8 | ConvertFrom-Json
             if ($cached.transcript_mtime -eq $current_mtime -and $cached.transcript_size -eq $current_size) {
                 if ($cached.agents -and $cached.agents.Count -gt 0) {
-                    return $cached.agents
+                    return @($cached.agents)
                 }
                 return $empty
             }
@@ -148,6 +148,7 @@ function Get-RunningAgents {
     $tool_results = @{}
 
     try {
+        # 전체 파일을 한 번에 읽음 — 대용량 세션에서는 성능 병목이 될 수 있음 (향후 최적화 가능)
         $lines = Get-Content $TranscriptPath -Encoding UTF8 -ErrorAction SilentlyContinue
         if (-not $lines) { return $empty }
 
@@ -196,6 +197,7 @@ function Get-RunningAgents {
             $running += [PSCustomObject]$tool_uses[$id]
         }
     }
+    $running = $running | Sort-Object { $_.timestamp }
 
     # 캐시 갱신
     try {
@@ -211,17 +213,13 @@ function Get-RunningAgents {
     return $running
 }
 
-$transcript_path = if ($json.transcript_path) { $json.transcript_path } else { "" }
-$running_agents  = @(Get-RunningAgents -TranscriptPath $transcript_path -CacheDir $cache_dir)
-$agent_count     = $running_agents.Count
-
 function Format-AgentDetail {
     param(
         [PSCustomObject]$Agent,
         [string]$FgIcon,
         [string]$FgName,
         [string]$FgDesc,
-        [string]$FgTime,
+        [string]$FgTime,  # 경과 시간 색상 — 호출자는 $FG_TIME 전달 권장
         [string]$Reset
     )
 
@@ -262,13 +260,17 @@ function Format-AgentDetail {
     return "${FgIcon}${icon} ${FgName}${name}${Reset}${model_tag}${desc}${elapsed_str}"
 }
 
+$transcript_path = if ($json.transcript_path) { $json.transcript_path } else { "" }
+$running_agents  = @(Get-RunningAgents -TranscriptPath $transcript_path -CacheDir $cache_dir)
+$agent_count     = $running_agents.Count
+
 # ── ANSI 헬퍼 ────────────────────────────
 function fg($r, $g, $b) { return "$([char]27)[38;2;${r};${g};${b}m" }
 $RESET = "$([char]27)[0m"
 
 $FG_DIM     = fg 100 100 120
 $FG_WHITE   = fg 220 220 230
-$FG_TIME    = fg 160 170 200
+$FG_TIME    = fg 160 170 200  # 시간 표시 및 에이전트 경과 시간용 (Format-AgentDetail $FgTime 인자로 전달)
 $FG_DIR     = fg 120 160 220
 $FG_VERSION = fg 150 120 200
 $FG_MODEL   = fg 100 180 200
