@@ -70,20 +70,10 @@ else { $model_name = "Claude" }
 # ── 컨텍스트 (live stdin 전용 — 캐시 사용 안 함) ──
 $ctx_size = if ($json_raw.context_window.context_window_size) { [int]$json_raw.context_window.context_window_size } else { 200000 }
 
-$in_tok = 0; $out_tok = 0; $cache_c = 0; $cache_r = 0
-if ($null -ne $json_raw -and $null -ne $json_raw.context_window.current_usage) {
-    $in_tok  = if ($json_raw.context_window.current_usage.input_tokens)                { [int]$json_raw.context_window.current_usage.input_tokens }                else { 0 }
-    $out_tok = if ($json_raw.context_window.current_usage.output_tokens)               { [int]$json_raw.context_window.current_usage.output_tokens }               else { 0 }
-    $cache_c = if ($json_raw.context_window.current_usage.cache_creation_input_tokens) { [int]$json_raw.context_window.current_usage.cache_creation_input_tokens } else { 0 }
-    $cache_r = if ($json_raw.context_window.current_usage.cache_read_input_tokens)     { [int]$json_raw.context_window.current_usage.cache_read_input_tokens }     else { 0 }
-}
-
-# output 토큰 포함하여 직접 계산 (used_percentage는 output 미포함이라 사용 안 함)
-$pct = 0.0
-if ($ctx_size -gt 0 -and ($in_tok + $out_tok + $cache_c + $cache_r) -gt 0) {
-    $pct = ($in_tok + $out_tok + $cache_c + $cache_r) * 100.0 / $ctx_size
-}
-$pct_int = [int]$pct
+# Claude Code 기본 Statusline과 동일한 수치 사용 (used_percentage 직접 참조)
+$pct_int = if ($null -ne $json_raw -and $null -ne $json_raw.context_window.used_percentage) {
+    [int]$json_raw.context_window.used_percentage
+} else { 0 }
 
 # ── PWD ──────────────────────────────────
 $raw_pwd = if ($json.workspace.current_dir) { $json.workspace.current_dir }
